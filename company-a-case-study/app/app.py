@@ -107,7 +107,7 @@ def logout():
 
 
 # ---------------------------------------------------------------- detail view
-def show_detail(sub: dict, profile: dict, children_of: set):
+def show_detail(sub: dict, profile: dict, children_of: set, scope: str = "main"):
     st.markdown(f"**Region:** {sub['region']} &nbsp; **Channel:** {sub['channel']} &nbsp; "
                 f"**Version:** {sub['version']} &nbsp; **Status:** {status_label(sub['status'])}")
     st.code(sub["content"], language="html" if "<" in sub["content"] else None, wrap_lines=True)
@@ -145,25 +145,25 @@ def show_detail(sub: dict, profile: dict, children_of: set):
     my_team = {"shariah": "Shariah", "compliance": "Compliance"}.get(role)
     if my_team and sub["status"] == "in_review" and any(
             r["team"] == my_team and r["decision"] == "pending" for r in reviews):
-        comment = st.text_input("Comment", key=f"c_{sub['id']}")
+        comment = st.text_input("Comment", key=f"c_{scope}_{sub['id']}")
         c1, c2 = st.columns(2)
-        if c1.button(f"Approve {my_team} part", key=f"a_{sub['id']}", type="primary"):
+        if c1.button(f"Approve {my_team} part", key=f"a_{scope}_{sub['id']}", type="primary"):
             if run_db(lambda: sb().rpc("decide_review", {"p_submission_id": sub["id"],
                    "p_decision": "approved", "p_comment": comment or None}).execute(), "Approved.") is not None:
                 st.rerun()
-        if c2.button(f"Reject {my_team} part", key=f"r_{sub['id']}"):
+        if c2.button(f"Reject {my_team} part", key=f"r_{scope}_{sub['id']}"):
             if run_db(lambda: sb().rpc("decide_review", {"p_submission_id": sub["id"],
                    "p_decision": "rejected", "p_comment": comment or None}).execute(), "Rejected.") is not None:
                 st.rerun()
 
     if role == "compliance" and (sub["status"] == "screening_failed" or is_stuck(sub)):
-        if st.button("Retry screening", key=f"retry_{sub['id']}"):
+        if st.button("Retry screening", key=f"retry_{scope}_{sub['id']}"):
             if run_db(lambda: sb().rpc("retry_screening", {"p_submission_id": sub["id"]}).execute(),
                    "Sent back for screening.") is not None:
                 st.rerun()
 
     if role == "submitter" and sub["status"] in RESUBMITTABLE and sub["id"] not in children_of:
-        with st.form(f"resub_{sub['id']}"):
+        with st.form(f"resub_{scope}_{sub['id']}"):
             st.markdown("**Edit and resubmit (creates a new version)**")
             t = st.text_input("Title", sub["title"])
             ch = st.selectbox("Channel", CHANNELS,
@@ -185,7 +185,7 @@ def show_detail(sub: dict, profile: dict, children_of: set):
     } for a in audit]), hide_index=True, use_container_width=True)
 
 
-def submission_list(subs: list, profile: dict, empty_msg: str):
+def submission_list(subs: list, profile: dict, empty_msg: str, scope: str = "main"):
     if not subs:
         st.write(empty_msg)
         return
@@ -193,7 +193,7 @@ def submission_list(subs: list, profile: dict, empty_msg: str):
     for s in subs:
         stuck = " (stuck)" if is_stuck(s) else ""
         with st.expander(f"{status_label(s['status'])}{stuck} · {s['title']} · {s['region']} · v{s['version']}"):
-            show_detail(s, profile, children_of)
+            show_detail(s, profile, children_of, scope)
 
 
 # ---------------------------------------------------------------- pages
@@ -233,9 +233,9 @@ def reviewer_page(profile: dict):
 
     tab_q, tab_all = st.tabs([f"My queue ({len(queue)})", f"All {profile['region']} submissions ({len(subs)})"])
     with tab_q:
-        submission_list(queue, profile, "Nothing waiting for you.")
+        submission_list(queue, profile, "Nothing waiting for you.", scope="queue")
     with tab_all:
-        submission_list(subs, profile, "No submissions in your region yet.")
+        submission_list(subs, profile, "No submissions in your region yet.", scope="all")
 
 
 # ---------------------------------------------------------------- main
