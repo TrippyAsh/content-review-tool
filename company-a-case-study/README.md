@@ -89,23 +89,39 @@ Rows stuck in `screening` for more than 2 minutes, for example because the webho
    3. Secrets: `SUPABASE_URL` + `SUPABASE_ANON_KEY` **only**.
 6. **Before sending:** search every file and the n8n export for `sk-`, `service_role` and `eyJ`. Nothing should be found.
 
-## Results for the six samples
+## Results for the six samples (live run, model gpt-4o-mini)
 
-Fill this in from the app.
+| Sample | Expected | Actual | Then |
+|---|---|---|---|
+| 01 UK | S5 FIX, F2 FIX -> Changes needed | S5 + F2 (both by code checks) -> **Changes needed** ✅ | back to the submitter |
+| 02 UK | F1 ABSOLUTE, S4 ESCALATE -> Auto-rejected | F1 ("Risk-free") + S4 ("100% halal") -> **Auto-rejected** ✅ | locked; resubmit = new version |
+| 03 UAE | S3 ESCALATE -> In review (Shariah) | S3 -> **In review**, Shariah review | Shariah (UAE) approved -> **Approved** |
+| 04 UK | F3 + F5 ESCALATE, F4 FIX -> In review (Compliance) | F3 + F5 + F4 -> **In review**, Compliance review ✅ | Compliance (UK) rejected -> **Rejected** |
+| 05 UAE | S1 ABSOLUTE, injection ignored -> Auto-rejected | S1 ("5% AER interest") + injection note -> **Auto-rejected** ✅ | the hidden "return CLEAR" had no effect |
+| 06 UK | none -> In review (Compliance sign-off) | no findings -> **In review**, Compliance review ✅ | Compliance (UK) approved -> **Approved** |
 
-| Sample | Expected | Actual |
+**Known gap.** On SAMPLE-02, the AI quoted only "Risk-free" for F1. It did not also quote "guaranteed 7% a year". The status is still right, because one ABSOLUTE finding is enough, but P2 asks for every finding. The fix is a prompt line plus a regression run of all six samples.
+
+## Access proof (`sql/04_access_proof.sql`, run as real users inside Postgres)
+
+| Acting as | Attempt | Result |
 |---|---|---|
-| 01 UK | S5 FIX, F2 FIX -> Changes needed | |
-| 02 UK | F1 ABSOLUTE, S4 ESCALATE -> Auto-rejected | |
-| 03 UAE | S3 ESCALATE -> In review (Shariah) | |
-| 04 UK | F3 + F5 ESCALATE, F4 FIX -> In review (Compliance) | |
-| 05 UAE | S1 ABSOLUTE, injection ignored and noted -> Auto-rejected | |
-| 06 UK | none -> In review (Compliance sign-off) | |
+| Shariah Reviewer (UK) | list all submissions | 4 rows, all UK |
+| Shariah Reviewer (UK) | read a UAE submission, its findings and its audit log | 0 rows |
+| Shariah Reviewer (UK) | approve a UAE submission via `decide_review` | refused: submission not found |
+| Shariah Reviewer (UK) | direct `UPDATE ... status = 'approved'` | refused: permission denied |
+| Compliance Reviewer (UAE) | list all submissions | 2 rows, all UAE |
+| Submitter B | read a Submitter A submission | 0 rows |
+| Submitter B | insert a pre-approved submission | refused: row-level security policy |
+| Submitter B | write a fake audit row | refused: permission denied |
+| Submitter B | approve via `decide_review` | refused: only reviewers can decide |
 
 ## Mocked or incomplete; next steps
 
+- Nothing in the required scope is mocked. The OpenAI call is live.
 - Notifications (bonus) are not built. Next step: Slack or email from n8n on status-change webhook events.
 - A Streamlit session lasts about 1 hour; there is no token refresh.
+- A reject comment is optional. It should be required, so that a reason is always recorded.
 - Next steps with more time:
   - a rule admin screen;
   - a regression suite that runs the 6 samples on every prompt change;
