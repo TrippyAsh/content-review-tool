@@ -119,7 +119,7 @@ Rows stuck in `screening` for more than 2 minutes, for example because the webho
 ## Mocked or incomplete; next steps
 
 - Nothing in the required scope is mocked. The OpenAI call is live.
-- Notifications (bonus) are not built. Next step: Slack or email from n8n on status-change webhook events.
+- Notifications (bonus) are not built (Now Completed). Next step: Slack or email from n8n on status-change webhook events.
 - A Streamlit session lasts about 1 hour; there is no token refresh.
 - A reject comment is optional. It should be required, so that a reason is always recorded.
 - Next steps with more time:
