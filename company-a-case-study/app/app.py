@@ -407,6 +407,31 @@ def reviewer_page(profile: dict):
         submission_list(subs, profile, "No submissions in your region yet.", scope="all")
 
 
+def notifications_panel():
+    """Bonus: in-app notifications. RLS returns only this user's rows."""
+    try:
+        notes = sb().table("notifications").select("*").order("created_at", desc=True).limit(15).execute().data
+    except Exception:
+        return  # table not created yet: the rest of the app keeps working
+    unread = [n for n in notes if not n["is_read"]]
+    seen = st.session_state.setdefault("toasted", set())
+    for n in unread:
+        if n["id"] not in seen:
+            st.toast(n["message"], icon="🔔")
+            seen.add(n["id"])
+    with st.expander(f"🔔 Notifications ({len(unread)} new)", expanded=bool(unread)):
+        if not notes:
+            st.caption("No notifications yet.")
+        for n in notes:
+            dot = "🔵 " if not n["is_read"] else ""
+            st.markdown(f'<div class="rule">{dot}{e(n["message"])}<br>'
+                        f'<span class="muted">{fmt_ts(n["created_at"])}</span></div>',
+                        unsafe_allow_html=True)
+        if unread and st.button("Mark all as read", key="mark_read"):
+            if run_db(lambda: sb().rpc("mark_notifications_read", {}).execute(), "Marked as read"):
+                st.rerun()
+
+
 def sidebar(p: dict):
     with st.sidebar:
         region = f' · {e(p["region"])}' if p.get("region") else ""
@@ -414,6 +439,7 @@ def sidebar(p: dict):
                     f'<span class="muted">{e(ROLE_LABEL.get(p["role"], p["role"]))}{region}</span></div>',
                     unsafe_allow_html=True)
         st.write("")
+        notifications_panel()
         if st.button("Sign out"):
             end_session("You have been signed out.")
             st.rerun()
